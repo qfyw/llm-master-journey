@@ -22,6 +22,11 @@ if not api_key:
 client = OpenAI(
     api_key=api_key,
     base_url=os.getenv("BASE_URL", "https://api.deepseek.com"),
+    default_headers={
+        # opencode go 要求客户端带稳定的会话 ID，并标明自己是谁
+        "x-opencode-session": os.getenv("SESSION_ID", "day01"),
+        "User-Agent": "llm-master-journey/0.1",
+    },
 )
 model = os.getenv("MODEL", "deepseek-flash")
 
@@ -39,5 +44,5 @@ usage = resp.usage
 cost = usage.prompt_tokens * PRICE_IN + usage.completion_tokens * PRICE_OUT
 print(
     f"\n[token] 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens} "
-    f"｜ 约 {cost:.6f} 元（≈ 这样聊 1000 次 {cost * 1000:.2f} 元）"
+    f"｜ 参考价 {cost:.6f} 元（按 deepseek 官方价折算，套餐内不单独扣费）"
 )
