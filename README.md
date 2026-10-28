@@ -32,7 +32,7 @@ python week1/probe.py         # 出问题时先跑这个，它会指出是哪一
 
 - [x] 第一次对话跑通（2026-10-28）
 - [ ] 改一句 prompt 再跑一次
-- [ ] 5 行笔记（`week1/notes/day01.md`）
+- [x] 5 行笔记（`week1/notes/day01.md`）
 
 ## 本周复盘（Day 7 填在最上面）
 
