@@ -28,10 +28,13 @@ model = os.getenv("MODEL", "deepseek-v4.1-flash")
 def chat(messages: list[dict]) -> str:
     """发一轮对话，返回模型回复的文本。messages 就是程序的"记忆"。"""
     # TODO 1: 调用 client.chat.completions.create，参数是 model 和 messages
-    ...
+    history = []
+    history.append({"role":"user","content":"你好"})
+    history.append({"role":"assistant","content":"你好呀，要聊什么"})
     # TODO 2: 从 resp 里取出回复文本并 return（链路的最后一环，
     #         昨天你 print 的是 .choices[0].message.content）
-
+    print(history)
+    print(len(history))
 
 def main() -> None:
     messages = [
