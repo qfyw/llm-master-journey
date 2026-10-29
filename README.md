@@ -38,7 +38,7 @@ python week1/probe.py         # 出问题时先跑这个，它会指出是哪一
 
 - [x] 多轮对话 `chat(messages)` 跑通（2026-10-29）
 - [x] 三连验收：它记得你上一句，连「你上一句说了什么」都能答
-- [ ] day02 笔记五空（`week1/notes/day02.md`）
+- [x] day02 笔记五空（`week1/notes/day02.md`）
 
 ## 本周复盘（Day 7 填在最上面）
 
