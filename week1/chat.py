@@ -40,8 +40,9 @@ def chat(messages: list[dict]) -> str:
     stream = client.chat.completions.create(
         model=model,
         messages=messages,
+        stream = True,
     )
-
+    
     # TODO 2（逐块收货）：把下面这五行从注释敲成真代码——
     #   for piece in stream:
     #       text = piece.choices[0].delta.content
@@ -54,10 +55,17 @@ def chat(messages: list[dict]) -> str:
     #     delta = 这一集里"新增的字"，不是完整台词
     #   · end="" —— print 打完默认自动换行；不让它换行，字才连成一句话
     #   · flush=True —— 强制立刻上屏；没有它终端会攒一攒再吐，打字机就卡死了
-
+    for piece in stream:
+        text = piece.choices[0].delta.content
+        if text is None:
+            continue
+        print(text, end="",flush=True)
+        full = full + text
     # TODO 3（收尾）：字蹦完之后，print() 单独一行换行，然后 return full
     # （full 交给 main，它要按昨天的 TODO 5 写回剧本）
-
+    print()
+    return full
+  
 def main() -> None:
     messages = [
         {"role": "system", "content": "你是一个简洁的中文助手。"},
