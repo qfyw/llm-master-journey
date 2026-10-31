@@ -44,19 +44,30 @@ user_plan = "健身 1 小时，然后学 40 分钟流式输出，最后背 30 �
 #           {"role": "user", "content": user_plan},
 #       ],
 #   )
-
+resp = client.chat.completions.create(
+    model=model,
+    messages=[
+        {"role":"system","content":system_prompt},
+        {"role":"user","content":user_plan},
+    ],
+)
 # TODO 2：取正文存进 text（昨天那条链路，同步版比流式好认：
 #   没有 delta，直接 text = resp.choices[0].message.content）
-
-print(repr(text))    # 体检线：repr 把字符串原样照出来（```、\n 全显形）
+text = resp.choices[0].message.content
+#   print(repr(text))    # 体检线：repr 把字符串原样照出来（```、\n 全显形）
                      # 程序稳定跑通后，把这一行注释掉
 
 # TODO 3：让 text 变成字典：data = json.loads(...)
 #   试试还没判断 text 什么形状？先跑 TODO 2 的体检线看看它到底给了你什么
-
+data = json.loads(text)
 # TODO 4（打印 + 累加）：
 #   total = 0                                   ← 放在 for 前面
 #   for task in data["tasks"]:
 #       print(f"- {task['name']}：{task['minutes']} 分钟")
 #       total = total + task["minutes"]
 #   print(f"今天共 {len(data['tasks'])} 项任务，合计 {total} 分钟")
+total = 0
+for task in data["tasks"]:
+    print(f"- {task['name']}:{task['minutes']}分钟")
+    total = total + task["minutes"]
+print(f"今天共 {len(data['tasks'])} 项任务，合计 {total} 分钟")
