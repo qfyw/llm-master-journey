@@ -39,8 +39,8 @@ PRICE_OUT = 8 / 1_000_000
 def get_date() -> str:
     """查今天的日期。真实项目里这可能是数据库、天气 API、公司内部系统。"""
     # TODO 1：返回今天日期，格式 2026-11-02。提示：date.today().isoformat()
-    ...
-
+    today = date.today().isoformat()
+    return today
 
 TOOLS = [
     {
@@ -100,7 +100,16 @@ def main() -> None:
         #   resp = ask(messages)                                   ⑤ 带着工具结果再问一次
         #   msg = resp.choices[0].message                          ⑥ 这次拿到的才是最终答案
         ...
-
+        messages.append(msg)
+        for call in msg.tool_calls:
+            args = json.loads(call.function.arguments or "{}")
+            result = get_date()
+            print(f"[工具] {call.function.name}({args}) → {result}")
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+        resp = ask(messages) 
+        if resp is None:
+            sys.exit("工具查询后的第二次请求失败。")
+        msg = resp.choices[0].message 
     print(f"\n助手：{msg.content}")
 
     usage = resp.usage

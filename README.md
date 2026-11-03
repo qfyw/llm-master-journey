@@ -3,50 +3,49 @@
 LLM 应用开发 · 渐进负荷版的执行记录。
 内容地图：[llm-master](https://github.com/youngyangyang04/llm-master)
 
-## 第 1 周目标
-
-一个**能跑、能解释、在 GitHub 上**的 AI 命令行助手 v1。
+> **第 1 周成品**：一个能跑、能解释的 AI 命令行助手——多轮记忆、流式输出、结构化输出、成本账本、函数调用。
 
 ## 运行环境
 
-接口是 OpenCode Go 的 OpenAI 兼容端点 `https://opencode.ai/zen/go/v1`，key 在 https://opencode.ai/auth 管理。
-`.env` 里四个值：
+- 接口：OpenCode Go 的 OpenAI 兼容端点 `https://opencode.ai/zen/go/v1`（key 管理：https://opencode.ai/auth）
+- `.env`（已被 .gitignore 排除）：`API_KEY` / `BASE_URL` / `MODEL` / `SESSION_ID`
+- 换模型只改 `MODEL`；换服务商只改 `BASE_URL` + `MODEL`，代码不用动
 
-| 字段 | 含义 |
-|---|---|
-| `API_KEY` | `oc_` 开头的 key，不提交、不外发 |
-| `BASE_URL` | `https://opencode.ai/zen/go/v1` |
-| `MODEL` | 当前用 `deepseek-v4.1-flash` |
-| `SESSION_ID` | 本客户端的稳定会话 ID，go 套餐要求请求头带它 |
+## 五个脚本，五级台阶
 
-换模型只改 `MODEL` 一行；换服务商只改 `BASE_URL` + `MODEL` 两行，代码不用动。
+| 脚本 | 能力 | 一句话原理 |
+|---|---|---|
+| `week1/day01_hello.py` | 让模型响一声 | 一次请求 = SDK 发 HTTPS → 推理服务端 → 逐 token → SDK 拼装 |
+| `week1/chat.py` | 多轮记忆 + 打字机 | 模型无状态：每次把**整个 messages 历史**重发，记忆在程序手里 |
+| `week1/structured.py` | 结构化输出 | 提示词立合同 + `json.loads` 验收；保形状不保语义 |
+| `week1/cost_log.py` | 重试 + 账本 | 错误分类：能修的睡 2 秒再试，修不好的别固执 |
+| `week1/assistant.py` | 函数调用 CLI | 模型只「举手」，程序执行工具并把回执塞回剧本 |
 
 ## 跑
 
 ```bash
-python week1/day01_hello.py   # 发一次对话，打印回复和 token
-python week1/probe.py         # 出问题时先跑这个，它会指出是哪一环坏了
+python week1/chat.py                          # 交互聊天（打字机效果）
+python week1/structured.py                    # 学习计划 → JSON 任务列表
+python week1/cost_log.py                      # 带重试与账单的对话
+python week1/assistant.py "今天几号？"         # 触发 get_date 工具
 ```
 
-## Day 1 记录
+样例（assistant.py 的真实输出）：
 
-- [x] 第一次对话跑通（2026-10-28）
-- [x] 改一句 prompt 再跑一次（并入 Day 2 多轮对话）
-- [x] 5 行笔记（`week1/notes/day01.md`）
+```
+[工具] get_date({}) → 2026-11-03
+助手：今天是 2026 年 11 月 3 日。
+[token] 输入 339 / 输出 16 ｜ 约 0.000806 元
+```
 
-## Day 2 记录
+`week1/probe.py` 是体检脚本：key、网络、模型名哪个坏了，它指给你看。
 
-- [x] 多轮对话 `chat(messages)` 跑通（2026-10-29）
-- [x] 三连验收：它记得你上一句，连「你上一句说了什么」都能答
-- [x] day02 笔记五空（`week1/notes/day02.md`）
+## 进度
 
-## Day 3 记录
+- Day 1-6 完成：五个脚本 + 每日笔记（`week1/notes/`）+ 阅读队列（`week1/reading-queue.md`）
+- 待办：Day 7 推送 GitHub + 写本周复盘三问
 
-- [x] 流式打字机效果跑通（2026-10-30）；`chat()` 内部升级，main 未动
-- [x] 回归测试：升级后多轮记忆完好
-- [x] day03 笔记五空（`week1/notes/day03.md`）
-
-## 本周复盘（Day 7 填在最上面）
+## 本周复盘（Day 7 填）
 
 1. 这周我学到了什么、能一句话讲清的概念？
 2. 这周留下了什么能看的东西？
