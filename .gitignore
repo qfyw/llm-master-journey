@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .venv/
+week2/data/
