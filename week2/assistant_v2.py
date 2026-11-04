@@ -49,7 +49,10 @@ def parse_workout(text: str):
     for attempt in range(3):
         try:
             # TODO 1（纯搬运，Day 4 原样）：同步 create，参数 model 和 messages
-            resp = ...
+            resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+            )
             break
         except (APIConnectionError, APIStatusError) as e:
             print(f"[第 {attempt + 1} 次失败] {type(e).__name__}：{e}", flush=True)
@@ -66,8 +69,16 @@ def parse_workout(text: str):
     #   然后校验（Day 4 的教训：保形状不保语义，程序要自己验）：
     #   · data 里有 "exercises" 这个键，且它的值是列表、不为空
     #   · 不合法 → print 一句人话提示 → return None
-    ...
-
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        print("模型没给合法 JSON（看看上面那行原文）")
+        return None
+    exercises = data.get("exercises")
+    if not exercises:
+        print("没解析出动作列表，换个说法再试")
+        return None
+    return data
 
 def save(record: dict) -> int:
     """追加一条记录到 workouts.jsonl，返回文件里的总条数。"""
@@ -77,7 +88,8 @@ def save(record: dict) -> int:
     #   with open(DATA_FILE, "a", encoding="utf-8") as f:
     #       f.write(json.dumps(record, ensure_ascii=False) + "\n")
     # 注意 "a" = append：只往末尾加，不覆盖老记录；ensure_ascii=False 让中文可读
-
+    with open(DATA_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
     # 数条数——老套路：打开文件，for 一行行数，非空的就 +1
     count = 0
     with open(DATA_FILE, encoding="utf-8") as f:
