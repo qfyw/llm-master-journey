@@ -79,6 +79,7 @@ def ask_once(messages: list[dict]):
                 messages=messages,
                 # TODO 1（两行）：把格式从「说服」升级成「管束」——
                 #   response_format={"type": "json_schema", "json_schema": WORKOUT_SCHEMA},
+                response_format={"type": "json_schema", "json_schema": WORKOUT_SCHEMA},
             )
             return resp
         except (APIConnectionError, APIStatusError) as e:
@@ -122,7 +123,8 @@ def parse_workout(text: str):
         #   messages.append({"role": "user", "content": "上面这次 exercises 是空的。"
         #                                            "请根据我最初的话重新解析；确实没有可记录的动作就保持空列表。"})
         # 提示：纠错消息必须说清「错在哪」+「要什么」，否则它第二次还会这么答。
-
+        messages.append({"role": "assistant", "content": raw})
+        messages.append({"role": "user", "content": "上面这次 exercises 是空的。""请根据我最初的话重新解析；确实没有可记录的动作就保持空列表。"})
     return None
 
 
