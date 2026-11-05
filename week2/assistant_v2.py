@@ -1,12 +1,13 @@
-"""Day 8：助手 v2 第一版——健身记录器。
+"""Day 9：助手 v2.1——把「格式」交给合同，把「重试」分成两层。
 
 用法：python week2/assistant_v2.py
-然后输入（自然语言）：今天卧推80kg 5组5次，深蹲100kg 5x5，跑步20分钟
+输入：今天卧推80kg 5组5次，深蹲100kg 5x5，跑步20分钟
 
-流程：你的话 → 模型转成 JSON（Day 4 技能）→ 追加进 week2/data/workouts.jsonl
-
-旧技能回收：structured.py 的 JSON 合同 / cost_log.py 的重试 / chat.py 的剧本结构
-新砖一块：JSON Lines 文件——一行一条记录，追加不覆盖，永久保存。
+今天的两处升级（来自 Day 8 笔记的对账结论）：
+① response_format 上 json_schema(strict)：格式从「说服」变成「管束」——
+   API 层保证输出符合 schema，裹围栏、字段漂移从「概率问题」变成「不可能事件」。
+   于是 prompt 里的格式说明退休，prompt 变短，输入 token 省下来。
+② 双层重试：网络失败（3 次 + sleep）和语义失败（1 次 + 纠错消息）是两类病，两份处方。
 """
 import json
 import os
@@ -29,68 +30,108 @@ client = OpenAI(
 )
 model = os.getenv("MODEL", "deepseek-v4.1-flash")
 
-# 数据放本地，不进公开仓库（这是你的身体数据，隔壁 .gitignore 已挡住）
 DATA_FILE = Path(__file__).parent / "data" / "workouts.jsonl"
 
-SYSTEM_PROMPT = """你是健身记录解析器。把用户的话解析成 JSON，只输出 JSON，不要其他文字。
-格式：
-{"date": "YYYY-MM-DD", "exercises": [{"name": "动作名", "weight_kg": 数字或null, "sets": 数字或null, "reps": 数字或null, "minutes": 数字或null}], "notes": "备注或空字符串"}
-规则：没提的数值写 null；有氧用 minutes；日期没提就用今天（今天是 """ + date.today().isoformat() + """）。"""
+SYSTEM_PROMPT = """你是健身记录解析器。把用户的话解析成结构化记录。
+规则：没提到的数值一律填 null；有氧运动用 minutes；日期用今天（今天是 """ + date.today().isoformat() + """）。
+若用户描述含糊（没有具体动作或数量），exercises 返回空列表。"""
+
+# —— JSON Schema 军规（strict 模式要求）——
+# · 每个字段都要列进 required（"可空"用 ["number", "null"] 表达，而不是不写）
+# · 每个 object 都要 additionalProperties: false（不许多塞字段）
+# · array 必须给出 items 的形状
+WORKOUT_SCHEMA = {
+    "name": "workout_record",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string"},
+            "exercises": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "weight_kg": {"type": ["number", "null"]},
+                        "sets": {"type": ["number", "null"]},
+                        "reps": {"type": ["number", "null"]},
+                        "minutes": {"type": ["number", "null"]},
+                    },
+                    "required": ["name", "weight_kg", "sets", "reps", "minutes"],
+                    "additionalProperties": False,
+                },
+            },
+            "notes": {"type": "string"},
+        },
+        "required": ["date", "exercises", "notes"],
+        "additionalProperties": False,
+    },
+}
+
+
+def ask_once(messages: list[dict]):
+    """发一次请求；网络层最多试 3 次。返回 resp 或 None。"""
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                # TODO 1（两行）：把格式从「说服」升级成「管束」——
+                #   response_format={"type": "json_schema", "json_schema": WORKOUT_SCHEMA},
+            )
+            return resp
+        except (APIConnectionError, APIStatusError) as e:
+            print(f"[网络第 {attempt + 1} 次失败] {type(e).__name__}：{e}", flush=True)
+            time.sleep(2)
+    return None
+
+
+def is_valid(data: dict) -> bool:
+    """语义验收：形状由 schema 保证，但「有没有内容」schema 管不了。"""
+    exercises = data.get("exercises")
+    return isinstance(exercises, list) and len(exercises) > 0
 
 
 def parse_workout(text: str):
-    """把一句话解析成记录字典；失败返回 None。"""
+    """解析一句话。网络失败重试 3 次；语义失败纠错重试 1 次。"""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": text},
     ]
 
-    resp = None
-    for attempt in range(3):
+    for round_no in range(2):          # 第一次 + 语义纠错一次
+        resp = ask_once(messages)
+        if resp is None:
+            return None
+
+        raw = resp.choices[0].message.content
+        print(f"[原文#{round_no + 1}] {raw}")
+
         try:
-            # TODO 1（纯搬运，Day 4 原样）：同步 create，参数 model 和 messages
-            resp = client.chat.completions.create(
-                model=model,
-                messages=messages,
-            )
-            break
-        except (APIConnectionError, APIStatusError) as e:
-            print(f"[第 {attempt + 1} 次失败] {type(e).__name__}：{e}", flush=True)
-            time.sleep(2)
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            print("strict 模式下出现非法 JSON——异常，原文见上一行")
+            return None
 
-    if resp is None:
-        return None
+        if is_valid(data):
+            return data
 
-    raw = resp.choices[0].message.content
-    print(f"[原文] {raw}")    # 体检线：看模型交的形状；稳定后注释掉
+        # TODO 2（今天的核心四行）：语义失败 → 纠错重试。顺序是协议：
+        #   messages.append({"role": "assistant", "content": raw})   ← 把它的错答留档
+        #   messages.append({"role": "user", "content": "上面这次 exercises 是空的。"
+        #                                            "请根据我最初的话重新解析；确实没有可记录的动作就保持空列表。"})
+        # 提示：纠错消息必须说清「错在哪」+「要什么」，否则它第二次还会这么答。
 
-    # TODO 2（半搬运 + 今天的第二层）：
-    #   data = json.loads(raw)
-    #   然后校验（Day 4 的教训：保形状不保语义，程序要自己验）：
-    #   · data 里有 "exercises" 这个键，且它的值是列表、不为空
-    #   · 不合法 → print 一句人话提示 → return None
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        print("模型没给合法 JSON（看看上面那行原文）")
-        return None
-    exercises = data.get("exercises")
-    if not exercises:
-        print("没解析出动作列表，换个说法再试")
-        return None
-    return data
+    return None
+
 
 def save(record: dict) -> int:
     """追加一条记录到 workouts.jsonl，返回文件里的总条数。"""
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-    # TODO 3（今天唯一的新砖）：追加模式写一行
-    #   with open(DATA_FILE, "a", encoding="utf-8") as f:
-    #       f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    # 注意 "a" = append：只往末尾加，不覆盖老记录；ensure_ascii=False 让中文可读
     with open(DATA_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    # 数条数——老套路：打开文件，for 一行行数，非空的就 +1
+
     count = 0
     with open(DATA_FILE, encoding="utf-8") as f:
         for line in f:
@@ -100,7 +141,7 @@ def save(record: dict) -> int:
 
 
 def main() -> None:
-    print("健身记录器 v1 —— 练完说一句，我帮你记。输入 q 退出。")
+    print("健身记录器 v2.1 —— 练完说一句，我帮你记。输入 q 退出。")
     while True:
         text = input("\n你说：").strip()
         if not text or text.lower() in {"q", "quit", "exit"}:
