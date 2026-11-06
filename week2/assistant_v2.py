@@ -87,10 +87,10 @@ QUERY_SCHEMA = {
             "intent": {
                 "type": "string",
                 # TODO 1：把三种意图的枚举值写进来（照 QUERY_PROMPT 里那三个词抄）
-                "enum": [],
+                "enum": ["last_exercise", "week_count", "unknown"],
             },
             # TODO 2（一行）：exercise 要可空——类型改成数组，和昨天 nullable 的写法一样
-            "exercise": {"type": "string"},
+            "exercise": {"type": ["string", "null"]},
         },
         "required": ["intent", "exercise"],
         "additionalProperties": False,
@@ -176,7 +176,7 @@ def load_records() -> list[dict]:
         for line in f:
             if line.strip():
                 # TODO 3（一行）：把这一行从字符串变成字典，装进 records
-                pass
+                records.append(json.loads(line))
     return records
 
 
@@ -188,6 +188,8 @@ def is_question(text: str) -> bool:
     # TODO 4（一行）：问句的特征——句尾是问号，或包含上面的任一提示词。
     #   提示：str.endswith 可以一次收多个候选：text.rstrip().endswith(("？", "?"))
     #        “包含”判断：any(hint in text for hint in QUESTION_HINTS)
+    if text.rstrip().endswith(("？", "?")) or any(hint in text for hint in QUESTION_HINTS):
+        return True
     return False
 
 
@@ -224,6 +226,10 @@ def answer_question(text: str, records: list[dict]) -> str:
     #   ② resp 为 None → return "网络不好，等下再问。"
     #   ③ data = json.loads(resp.choices[0].message.content)
     #   ④ 注意：这里是「理解层」，还不需要 load_records —— 模型没看过任何训练数据。
+    resp = ask_once(messages, QUERY_SCHEMA)
+    if resp is None:
+        return "网络不好，等下再问。"
+    data = json.loads(resp.choices[0].message.content)
 
     intent = data["intent"]
     exercise = data["exercise"]
@@ -262,7 +268,10 @@ def main() -> None:
             #   提示：records = load_records()
             #        print(answer_question(text, records))
             #        continue
-            pass
+            #不懂
+            records = load_records() 
+            print(answer_question(text, records))
+            continue
         else:
             record = parse_workout(text)
             if record is None:
