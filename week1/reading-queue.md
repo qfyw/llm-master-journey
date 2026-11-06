@@ -6,11 +6,12 @@
 ## 已读（可随时回查，不算欠）
 - [x] `docs/roadmap/beginner.md` + `application.md` —— Day 1 地图级扫读
 - [x] `docs/llm/app/streaming_output.md` —— Day 3 实践后全读 + 对账批注（2026-10-30）
+- [x] `prompt_engineering.md` —— Day 8 读完 + 对账（`week2/notes/day08.md`，2026-11-05）
+- [x] `context_engineering.md` —— Day 10 边做「查历史」边读：39/92 已对账（`week2/notes/day10.md`）；172 滑动窗口 / 191 摘要压缩 / 210 分层记忆 / 228 工具调用污染，等遇到对应问题时再读
+- [x] `structured_output.md` —— Day 8 晚对账（`week2/notes/day08.md`，2026-11-04）
 
 ## 已预约（到期才解锁）
-- [ ] `prompt_engineering.md` —— **今晚**（Day 8 课文，15-20′；重点第三节「带插槽的模板」+ 第四节「输出格式约束」）
-- [ ] `context_engineering.md` —— **Day 9-10**，做「查历史」时边做边读（161 行「拼起来：结构化 Prompt 骨架」先扫；上下文预算、滑动窗口、摘要压缩留到做历史功能时）
-- [ ] **周末补档（各 10′）**：`structured_output.md` / `token_cost_latency.md` / `function_calling.md` —— Day 4-6 的课文对账
+- [ ] **周末补档（各 10′）**：`token_cost_latency.md` / `function_calling.md` —— Day 5-6 的课文对账
 
 ## 未到期（别碰，不用计划，不用焦虑）
 - `why_rag.md`、RAG 系列、`embedding.md` —— 第 3 周
