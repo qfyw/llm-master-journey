@@ -41,7 +41,9 @@ DATA_FILE = Path(__file__).parent / "data" / "workouts.jsonl"
 #   提示：示例里不必写日期——写死哪一天，明天就过期了；只示范字段。
 SYSTEM_PROMPT = """你是健身记录解析器。把用户的话解析成结构化记录。
 规则：没提到的数值一律填 null；有氧运动用 minutes；日期用今天（今天是 """ + date.today().isoformat() + """）。
-若用户描述含糊（没有具体动作或数量），exercises 返回空列表。"""
+示例（只示范字段怎么填，不示范整张格式）：
+- 「今天跑了半小时」→ {"name": "跑步", "minutes": 30}，其余数值字段填 null
+- 「练了一下」→ {"exercises": []}"""
 
 QUERY_PROMPT = """你在把健身助手用户的问题翻译成查询意图。
 可选意图：
@@ -95,7 +97,7 @@ QUERY_SCHEMA = {
                 "type": "string",
                 # TODO 1：第四种意图加进枚举（照 QUERY_PROMPT 里新加的那个词抄）。
                 #   昨天 lesson：enum 是「只能从这几个词里选」，不是 properties 的字段表。
-                "enum": ["last_exercise", "week_count", "unknown"],
+                "enum": ["last_exercise", "week_count", "unknown", "week_summary"],
             },
             # 可空写法：["string", "null"] 是「字符串或 null」，不是 "string,null"
             "exercise": {"type": ["string", "null"]},
@@ -244,9 +246,11 @@ def compute_week_stats(records: list[dict]) -> dict:
             name = item["name"]
             # TODO 2（三行）：第一次遇到这个动作 → 在 stats 里给它开一本空账（全是 0，best_kg 是 None）
             #   提示：if name not in stats: stats[name] = {"times": 0, "best_kg": None, "sets": 0, "reps": 0, "minutes": 0}
+            if name not in stats:
+                stats[name] = {"times": 0, "best_kg": None, "sets": 0, "reps": 0, "minutes": 0}
             s = stats[name]          # ← 先留着这行；TODO 2 写完，它才有东西可取
             s["times"] = s["times"] + 1
-
+            
             # TODO 3（四段 if）：把这次的数据并进账本——
             #   ① 重量：item["weight_kg"] 不是 None 时，跟 s["best_kg"] 比，更大（或还没有）就更新；
             #      None 表示「这次没记重量」，不是 0kg
@@ -254,7 +258,15 @@ def compute_week_stats(records: list[dict]) -> dict:
             #   ③ 次数：同上，累加 reps
             #   ④ 分钟：同上，累加 minutes
             #   提示：没值就跳过，否则 None + 1 会 TypeError——「没记」和「记了 0」是两件事。
-
+            if s["best_kg"] is None or s["best_kg"] < item["weight_kg"]:
+                s["best_kg"] = item["weight_kg"]
+            if item["sets"]:
+                s["sets"] = s["sets"] + item["sets"]
+            if item["reps"]:
+                s["reps"] = s["reps"] + item["reps"]
+            if item["minutes"]:
+                s["minutes"] = s["minutes"] + item["minutes"]
+            
     return {"week_start": monday.isoformat(), "sessions": sessions, "exercises": stats}
 
 
@@ -302,7 +314,7 @@ def write_summary(stats: dict) -> str:
 
     print(f"[token] 总结 输入 {resp.usage.prompt_tokens} / 输出 {resp.usage.completion_tokens}")
     # TODO 4（一行）：把总结正文返回给调用者
-    return ""
+    return resp.choices[0].message.content.strip()
 
 
 def answer_question(text: str, records: list[dict]) -> str:
@@ -347,7 +359,11 @@ def answer_question(text: str, records: list[dict]) -> str:
         #   ③ header = f"这周（{stats['week_start']} 起）共练了 {stats['sessions']} 次。\n"
         #   ④ return header + write_summary(stats)
         #   想一想：总次数为什么让程序报，不让模型报？
-        return ""
+        stats = compute_week_stats(records)
+        if stats["sessions"] == 0:
+            return "这周还没有记录，练完说一句就有了。"
+        header = f"这周（{stats['week_start']} 起）共练了 {stats['sessions']} 次。\n"
+        return header + write_summary(stats)
 
     return "这个问题我还答不了。试试「我上次卧推多少」或「这周练了几次」。"
 
