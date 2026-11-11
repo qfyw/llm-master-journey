@@ -119,7 +119,7 @@ def track_usage(label: str, resp, latency: float) -> None:
 
     # TODO 1（一行）：花费 = 输入 token × 输入单价 + 输出 token × 输出单价。
     #   单价在文件顶部 PRICE_IN / PRICE_OUT；先乘 token 再乘单价，别反过来。
-    cost = 0.0
+    cost = usage.prompt_tokens*PRICE_IN + usage.completion_tokens*PRICE_OUT
 
     print(f"[账本] {label} 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens}"
           f" ｜ 约 {cost:.6f} 元 ｜ 耗时 {latency:.2f}s")
@@ -136,10 +136,16 @@ def track_usage(label: str, resp, latency: float) -> None:
     #   提示：文件所在目录可能还不存在；追加用的模式是 "a"。
     #   USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
     #   with open(...) as f: f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
+    USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(USAGE_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
     # TODO 3（四行）：累加会话总账——调用次数、输入、输出、花费。
     #   提示：SESSION 是文件顶部那个字典；用法和 Day 5 的四个累加器一样。
-    pass
+    SESSION["calls"] = SESSION["calls"] + 1
+    SESSION["input"] = SESSION["input"] + usage.prompt_tokens
+    SESSION["output"] = SESSION["output"] + usage.completion_tokens
+    SESSION["cost"] = SESSION["cost"] + cost
+
 
 
 def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请求"):
@@ -150,6 +156,7 @@ def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请
             #   ① started = time.perf_counter()          ← 放在 if schema 判断之前
             #   ② latency = time.perf_counter() - started ← 放在拿到 resp 之后
             #   提示：perf_counter 是单调秒表，比 time.time() 更适合量耗时（系统改时间它不跳）。
+            started = time.perf_counter()
             if schema is not None:
                 resp = client.chat.completions.create(
                     model=model,
@@ -161,7 +168,7 @@ def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请
                     model=model,
                     messages=messages,
                 )
-            latency = 0.0   # ← 用上面 ② 的结果替换这一行
+            latency = time.perf_counter() - started   # ← 用上面 ② 的结果替换这一行
             track_usage(label, resp, latency)
             return resp
         except (APIConnectionError, APIStatusError) as e:
@@ -239,7 +246,7 @@ def load_records() -> list[dict]:
 
 # TODO 5（一个词）：Day 11 的已知缺口——「帮我总结一下」不含问号，也不含下面任何提示词，
 #   会被当成训练记录送进解析线。往元组里加一个词，让这句话走查询线（提示：加在最后）。
-QUESTION_HINTS = ("多少", "几次", "上次", "最近", "这周", "本周", "历史", "多久")
+QUESTION_HINTS = ("多少", "几次", "上次", "最近", "这周", "本周", "历史", "多久" ,"总结")
 
 
 def is_question(text: str) -> bool:
