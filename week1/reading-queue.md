@@ -11,9 +11,10 @@
 - [x] `structured_output.md` —— Day 8 晚对账（`week2/notes/day08.md`，2026-11-04）
 
 - [x] `token_cost_latency.md` —— Day 12 做完账本后对账：Token / 计费公式 / TTFT-TPOT 三节已读；生产优化、监控指标等部署时再读
+- [x] `function_calling.md` —— Day 14 补档：和工具调用四问一起对账（`week2/notes/day14.md`）
 
 ## 已预约（到期才解锁）
-- [ ] **周末补档（10′）**：`function_calling.md` —— Day 6 的课文对账
+- （空）
 
 ## 未到期（别碰，不用计划，不用焦虑）
 - `why_rag.md`、RAG 系列、`embedding.md` —— 第 3 周
