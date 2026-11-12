@@ -126,8 +126,7 @@ def track_usage(label: str, resp, latency: float) -> None:
     """一次成功调用的账：打印小票 + 追加账本 + 累加会话总账。"""
     usage = resp.usage
 
-    # TODO 1（一行）：花费 = 输入 token × 输入单价 + 输出 token × 输出单价。
-    #   单价在文件顶部 PRICE_IN / PRICE_OUT；先乘 token 再乘单价，别反过来。
+    # 参考花费：输入/输出 token 各乘自己的单价，再相加
     cost = usage.prompt_tokens*PRICE_IN + usage.completion_tokens*PRICE_OUT
 
     print(f"[账本] {label} 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens}"
@@ -141,15 +140,11 @@ def track_usage(label: str, resp, latency: float) -> None:
         "cost": round(cost, 6),
         "latency_s": round(latency, 3),
     }
-    # TODO 2（三行）：把 record 追加到 USAGE_FILE，一行一个 JSON。
-    #   提示：文件所在目录可能还不存在；追加用的模式是 "a"。
-    #   USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    #   with open(...) as f: f.write(json.dumps(record, ensure_ascii=False) + "\n")
     USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(USAGE_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    # TODO 3（四行）：累加会话总账——调用次数、输入、输出、花费。
-    #   提示：SESSION 是文件顶部那个字典；用法和 Day 5 的四个累加器一样。
+
+    # 会话总账只累加成功调用；失败/重试次数单独记在 failures
     SESSION["calls"] = SESSION["calls"] + 1
     SESSION["input"] = SESSION["input"] + usage.prompt_tokens
     SESSION["output"] = SESSION["output"] + usage.completion_tokens
@@ -275,9 +270,8 @@ def load_records() -> list[dict]:
     return records
 
 
-# TODO 5（一个词）：Day 11 的已知缺口——「帮我总结一下」不含问号，也不含下面任何提示词，
-#   会被当成训练记录送进解析线。往元组里加一个词，让这句话走查询线（提示：加在最后）。
-QUESTION_HINTS = ("多少", "几次", "上次", "最近", "这周", "本周", "历史", "多久" ,"总结")
+# 「帮我总结一下」不含问号，靠「总结」这个词走查询线（Day 11 的缺口，已补）
+QUESTION_HINTS = ("多少", "几次", "上次", "最近", "这周", "本周", "历史", "多久", "总结")
 
 
 def is_question(text: str) -> bool:
