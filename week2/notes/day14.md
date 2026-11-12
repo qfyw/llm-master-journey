@@ -35,8 +35,8 @@ v2.5 能记录 / 查询 / 周总结 / 记账 / 出账单；Day 8-13 的每日笔
 - [x] `python week2/bill_summary.py` 用真实账本生成 `week2/bill-summary.md`（2 条真实记录，合计 0.005692 元）
 - [x] 第 2 周复盘写进 `README.md`
 - [x] `function_calling.md` 对账完成，勾掉阅读队列
-- [ ] `git push` 到 GitHub（本地领先 origin 9 个 commit）
-- [ ] （可选）算法日：704 二分查找手写 + `algo/NOTES.md` 记卡点
+- [x] `git push` 到 GitHub（第 2 周全部提交已推送）
+- [ ] （可选）算法日：704 二分查找手写 + `algo/NOTES.md` 记卡点（第 2 周不做，按规则顺延，不补课）
 
 ## 第 3 周准备
 
