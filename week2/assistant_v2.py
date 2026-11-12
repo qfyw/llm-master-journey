@@ -1,15 +1,15 @@
-"""Day 12：助手 v2.4——每次请求都有小票。
+"""Day 13：助手 v2.5——错了要分清能不能救，花了钱要能看账单。
 
 用法：python week2/assistant_v2.py
 记录：今天卧推80kg 5组5次，深蹲100kg 5x5，跑步20分钟
 提问：我上次卧推多少？ / 这周练了几次？ / 这周练得怎么样？
 
-今天的主题（可观测性）：
-· 三条模型调用线（记录解析 / 意图翻译 / 周总结）都从 ask_once 过路，
-  统一记账：输入、输出、参考花费、耗时——按调用点分开算，不再各打各的。
-· 每次成功调用追加一行到 week2/data/usage.jsonl；退出时打印本次会话总账。
-· 「输出 token 为什么贵」不再靠感觉：账本直接告诉你钱花在哪条线、哪一段。
-· 顺手补掉 Day 11 的已知缺口：让「帮我总结一下」走到查询线（一个词的事）。
+今天的主题（稳定性 + 可观测性收尾）：
+· 错误分类：断网/超时/429/5xx 才重试；401/402/400 立刻停手——重试修不好它们。
+· 指数退避：第 1 次失败等 2 秒，第 2 次等 4 秒，别拿固定频率敲服务端。
+· 关掉 SDK 自带的 2 次隐藏重试（max_retries=0）：重试只由 ask_once 管，
+  否则「3 次尝试」实际会变成 3 × 3 = 9 次 HTTP 请求。
+· 另起 week2/bill_summary.py：把 usage.jsonl 变成可提交的派生账单。
 """
 import json
 import os
@@ -25,6 +25,7 @@ load_dotenv()
 client = OpenAI(
     api_key=os.getenv("API_KEY"),
     base_url=os.getenv("BASE_URL"),
+    max_retries=0,   # Day 13：SDK 默认会自己重试 2 次；关掉它，重试次数才归我们掌控
     default_headers={
         "x-opencode-session": os.getenv("SESSION_ID", "workout"),
         "User-Agent": "llm-master-journey/0.1",
@@ -40,8 +41,16 @@ USAGE_FILE = Path(__file__).parent / "data" / "usage.jsonl"
 PRICE_IN = 2 / 1_000_000
 PRICE_OUT = 8 / 1_000_000
 
+# 网络层最多尝试几次：是「总次数」，不是「重试次数」。
+MAX_ATTEMPTS = 3
+
+# 这些 HTTP 状态码值得再试：408 超时 / 429 限流 / 5xx 服务端临时故障。
+# 401 key 错、402 余额不足、400 参数/schema 错——再试多少次结果都一样。
+RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+
 # 本次会话的总账：每成功调用一次就累加，退出时结算。
-SESSION = {"calls": 0, "input": 0, "output": 0, "cost": 0.0}
+# failures 记的是「失败并进入重试/放弃」的次数，不混进 token 账。
+SESSION = {"calls": 0, "input": 0, "output": 0, "cost": 0.0, "failures": 0}
 
 # few-shot 设计（Day 11）：只示范字段，不重抄整张 schema（形状归 WORKOUT_SCHEMA 管）；
 # 示例不写日期——写死哪一天，明天就过期；日期靠下面的插槽注入。
@@ -147,15 +156,21 @@ def track_usage(label: str, resp, latency: float) -> None:
     SESSION["cost"] = SESSION["cost"] + cost
 
 
+def is_retryable(e: Exception) -> bool:
+    """这个错误值不值得再试一次？网络抖动值得，key 错了不值得。"""
+    # TODO 1（四行 · Day 13）：错误分类。
+    #   · 断网 / DNS / 超时：isinstance(e, APIConnectionError) → True
+    #   · 服务端有状态码：isinstance(e, APIStatusError) → e.status_code in RETRYABLE_STATUS
+    #   · 其它 → False
+    #   提示：APIStatusError 是父类，401/402/400 也走它；先判连接错误，再看状态码。
+    return False   # ← 占位：先「一律不重试」，写完删掉这行
+
 
 def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请求"):
-    """发一次请求；网络层最多试 3 次。成功后退场前自动记账（带调用点标签）。"""
-    for attempt in range(3):
+    """发一次请求；网络层最多试 MAX_ATTEMPTS 次。成功后退场前自动记账（带调用点标签）。"""
+    for attempt in range(MAX_ATTEMPTS):
         try:
-            # TODO 4（两行）：给这一次调用掐表。
-            #   ① started = time.perf_counter()          ← 放在 if schema 判断之前
-            #   ② latency = time.perf_counter() - started ← 放在拿到 resp 之后
-            #   提示：perf_counter 是单调秒表，比 time.time() 更适合量耗时（系统改时间它不跳）。
+            # 掐表：perf_counter 包住整个请求（网络 + 排队 + Prefill + Decode），不是纯 Decode
             started = time.perf_counter()
             if schema is not None:
                 resp = client.chat.completions.create(
@@ -168,12 +183,28 @@ def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请
                     model=model,
                     messages=messages,
                 )
-            latency = time.perf_counter() - started   # ← 用上面 ② 的结果替换这一行
+            latency = time.perf_counter() - started
             track_usage(label, resp, latency)
             return resp
         except (APIConnectionError, APIStatusError) as e:
-            print(f"[网络第 {attempt + 1} 次失败] {type(e).__name__}：{e}", flush=True)
-            time.sleep(2)
+            SESSION["failures"] += 1
+            # TODO 2（四行 · Day 13）：分类之后才决定要不要重试。
+            #   ① 不可重试（401 key 错 / 402 余额不足 / 400 参数错）：
+            #      打印「不可重试」并 return None —— 再试只是浪费时间和日志。
+            #   ② 可重试但已经到最后一次：
+            #      打印「重试用尽」并 return None。
+            #   提示：
+            #   if not is_retryable(e):
+            #       ...
+            #   if attempt == MAX_ATTEMPTS - 1:
+            #       ...
+            ...
+            # TODO 3（一行 · Day 13）：指数退避——第 1 次失败等 2 秒，第 2 次等 4 秒。
+            #   提示：2 ** (attempt + 1)
+            delay = 0
+            print(f"[网络第 {attempt + 1}/{MAX_ATTEMPTS} 次失败] {type(e).__name__}：{e}"
+                  f" ｜ {delay:.0f}s 后重试", flush=True)
+            time.sleep(delay)
     return None
 
 
@@ -406,7 +437,7 @@ def answer_question(text: str, records: list[dict]) -> str:
 
 
 def main() -> None:
-    print("健身记录器 v2.4 —— 练完说一句我帮你记；想问就问（如：我上次卧推多少？这周练得怎么样？）。输入 q 退出。")
+    print("健身记录器 v2.5 —— 练完说一句我帮你记；想问就问（如：我上次卧推多少？这周练得怎么样？）。输入 q 退出。")
     while True:
         text = input("\n你说：").strip()
         if not text or text.lower() in {"q", "quit", "exit"}:
@@ -428,10 +459,11 @@ def main() -> None:
             print(f"已记录 {record['date']} ｜ {names} ｜ 文件累计 {total} 条")
 
     # 退出时结算本次会话（Ctrl+C 直接走的话不会执行到这里——已知边界）
-    if SESSION["calls"] == 0:
+    if SESSION["calls"] == 0 and SESSION["failures"] == 0:
         print("本次会话：没有发生模型调用。")
     else:
-        print(f"本次会话：{SESSION['calls']} 次调用 ｜ 输入 {SESSION['input']} / 输出 {SESSION['output']}"
+        print(f"本次会话：{SESSION['calls']} 次成功调用 ｜ 失败/重试 {SESSION['failures']} 次"
+              f" ｜ 输入 {SESSION['input']} / 输出 {SESSION['output']}"
               f" ｜ 参考总价 {SESSION['cost']:.6f} 元")
 
 
