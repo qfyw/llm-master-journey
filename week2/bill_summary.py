@@ -36,28 +36,42 @@ def summarize(rows: list[dict], key_fn) -> dict:
     key_fn 是一个函数：传 lambda row: row["label"] 就按调用点汇总，
     传 lambda row: row["ts"][:10] 就按日期汇总。
     """
-    # TODO 1（六行）：把 rows 聚合成分组字典。
-    #   目标形状：{"2026-11-10": {"calls": 3, "input": 786, "output": 223, "cost": 0.003356}, ...}
-    #   提示：
-    #   groups = defaultdict(lambda: {"calls": 0, "input": 0, "output": 0, "cost": 0.0})
-    #   for row in rows:
-    #       g = groups[key_fn(row)]
-    #       g["calls"] += 1
-    #       g["input"] += row["input"]
-    #       ...（output、cost 同理）
-    #   最后 return dict(groups)
-    pass
+    groups = defaultdict(lambda: {"calls": 0, "input": 0, "output": 0, "cost": 0.0})
+    for row in rows:
+        g = groups[key_fn(row)]
+        g["calls"] += 1
+        g["input"] += row["input"]
+        g["output"] += row["output"]
+        g["cost"] += row["cost"]
+    return dict(groups)
 
 
 def render_table(title: str, groups: dict, first_col: str) -> str:
     """把一组汇总渲染成 markdown 表：表头 + 每个分组一行 + 合计一行。"""
-    # TODO 2（十行左右）：拼表格。
-    #   表头：  | 键 | 调用 | 输入 | 输出 | 参考花费（元） |
-    #   对齐：  |---:|---:|---:|---:|---:|
-    #   数据：  | 2026-11-10 | 3 | 786 | 223 | 0.003356 |
-    #   合计：把每组 calls/input/output/cost 再加一遍；花费保留 6 位小数。
-    #   提示：lines 列表 + "\n".join(lines)；行内花费 f"{cost:.6f}"。
-    pass
+    lines = [f"## {title}", ""]
+
+    # 表头 + 对齐行
+    lines.append(f"| {first_col} | 调用 | 输入 | 输出 | 参考花费（元） |")
+    lines.append("|---|---:|---:|---:|---:|")
+
+    # 合计用的四个累加器
+    total_calls = 0
+    total_input = 0
+    total_output = 0
+    total_cost = 0.0
+
+    # 每组一行
+    for key, g in groups.items():
+        lines.append(f"| {key} | {g['calls']} | {g['input']} | {g['output']} | {g['cost']:.6f} |")
+        total_calls += g["calls"]
+        total_input += g["input"]
+        total_output += g["output"]
+        total_cost += g["cost"]
+
+    # 合计行
+    lines.append(f"| 合计 | {total_calls} | {total_input} | {total_output} | {total_cost:.6f} |")
+
+    return "\n".join(lines)
 
 
 def render(rows: list[dict]) -> str:

@@ -153,12 +153,12 @@ def track_usage(label: str, resp, latency: float) -> None:
 
 def is_retryable(e: Exception) -> bool:
     """这个错误值不值得再试一次？网络抖动值得，key 错了不值得。"""
-    # TODO 1（四行 · Day 13）：错误分类。
-    #   · 断网 / DNS / 超时：isinstance(e, APIConnectionError) → True
-    #   · 服务端有状态码：isinstance(e, APIStatusError) → e.status_code in RETRYABLE_STATUS
-    #   · 其它 → False
-    #   提示：APIStatusError 是父类，401/402/400 也走它；先判连接错误，再看状态码。
-    return False   # ← 占位：先「一律不重试」，写完删掉这行
+    # 连接层错误（断网/超时）和 429/5xx 值得重试；401/402/400 重试也没用
+    if isinstance(e, APIConnectionError):
+        return True
+    if isinstance(e, APIStatusError):
+        return e.status_code in RETRYABLE_STATUS
+    return False
 
 
 def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请求"):
@@ -183,20 +183,15 @@ def ask_once(messages: list[dict], schema: dict | None = None, label: str = "请
             return resp
         except (APIConnectionError, APIStatusError) as e:
             SESSION["failures"] += 1
-            # TODO 2（四行 · Day 13）：分类之后才决定要不要重试。
-            #   ① 不可重试（401 key 错 / 402 余额不足 / 400 参数错）：
-            #      打印「不可重试」并 return None —— 再试只是浪费时间和日志。
-            #   ② 可重试但已经到最后一次：
-            #      打印「重试用尽」并 return None。
-            #   提示：
-            #   if not is_retryable(e):
-            #       ...
-            #   if attempt == MAX_ATTEMPTS - 1:
-            #       ...
-            ...
-            # TODO 3（一行 · Day 13）：指数退避——第 1 次失败等 2 秒，第 2 次等 4 秒。
-            #   提示：2 ** (attempt + 1)
-            delay = 0
+            # 不可重试，或可重试但已是最后一次：直接放弃，不再空转
+            if not is_retryable(e):
+                print(f"不可重试")
+                return None
+            if attempt == MAX_ATTEMPTS - 1:
+                print(f"重试用尽")
+                return None
+            # 指数退避：第 1 次失败等 2s，第 2 次等 4s
+            delay = 2 ** (attempt + 1)
             print(f"[网络第 {attempt + 1}/{MAX_ATTEMPTS} 次失败] {type(e).__name__}：{e}"
                   f" ｜ {delay:.0f}s 后重试", flush=True)
             time.sleep(delay)
