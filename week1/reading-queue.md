@@ -10,8 +10,9 @@
 - [x] `context_engineering.md` —— Day 10 边做「查历史」边读：39/92 已对账（`week2/notes/day10.md`）；172 滑动窗口 / 191 摘要压缩 / 210 分层记忆 / 228 工具调用污染，等遇到对应问题时再读
 - [x] `structured_output.md` —— Day 8 晚对账（`week2/notes/day08.md`，2026-11-04）
 
+- [x] `token_cost_latency.md` —— Day 12 做完账本后对账：Token / 计费公式 / TTFT-TPOT 三节已读；生产优化、监控指标等部署时再读
+
 ## 已预约（到期才解锁）
-- [ ] `token_cost_latency.md` —— **Day 12 今天**（做完账本后 15′ 对账：计费公式 / TTFT-TPOT / 优化顺序）
 - [ ] **周末补档（10′）**：`function_calling.md` —— Day 6 的课文对账
 
 ## 未到期（别碰，不用计划，不用焦虑）
